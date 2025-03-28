@@ -151,7 +151,7 @@ jobs:
         cd openwrt
         ${{ secrets.RP3B_IMWRT2410_HOSTNAME }}
         ${{ secrets.ARGON_THEME_RPI }}
-#        ${{ secrets.FIRMWARE_DIY_SCRIPT }}
+        ${{ secrets.FIRMWARE_DIY_SCRIPT }}
 
     - name: Download package (パッケージをダウンロード)
       id: package
