@@ -149,7 +149,7 @@ jobs:
         ${{ secrets.RP3B_IMWRT2410_CONFIG }}
         mv .config openwrt/.config
         cd openwrt
-        ${{ secrets.FIRMWARE_DIY_SCRIPT }}
+#        ${{ secrets.FIRMWARE_DIY_SCRIPT }}
         ${{ secrets.RP3B_IMWRT2410_HOSTNAME }}
         ${{ secrets.ARGON_THEME_RPI }}
 
