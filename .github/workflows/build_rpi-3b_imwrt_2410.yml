@@ -201,7 +201,7 @@ jobs:
     - name: Telegram notification (テレグラム通知)
       if: steps.compile.outputs.status == 'success' && !cancelled()
       run: |
-        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&format=markdown&text=✅%20ファームウェアが正常にコンパイルされました。%20✅%0A-%20🛜デバイス:%20${{ env.DEVICE_NAME }}%0A-%20🗼ソースコード:%20$SOURCE_REPO%0A-%20🔀ブランチ:%20${{ secrets.IMWRT2410_REPO_BRANCH }}.%0Aファームウェア名前:%20${{ env.OUTPUT_FILENAME }}${{ env.FILE_DATE }}%0A"
+        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&format=markdown&text=✅%20ファームウェアが正常にコンパイルされました。%20✅%0A-%20🛜デバイス:%20${{ env.DEVICE_NAME }}%0A-%20🗼ソースコード:%20$SOURCE_REPO%0A-%20🔀ブランチ:%20${{ secrets.IMWRT2410_REPO_BRANCH }}.%0A-%20📦ファームウェア名前:%20${{ env.OUTPUT_FILENAME }}${{ env.FILE_DATE }}%0A"
 
     - name: Generate Release Tag (タグを生成する)
       run: |
@@ -212,7 +212,7 @@ jobs:
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true'
       uses: ncipollo/release-action@v1
       with:
-        name: ${{ env.FIRMWARE_TAG }}-${{ env.DEVICE_NAME }}-${{ env.DATE }}
+        name: ${{ env.FIRMWARE_TAG }}_${{ env.DEVICE_NAME }}${{ env.DATE }}
         allowUpdates: false
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}
