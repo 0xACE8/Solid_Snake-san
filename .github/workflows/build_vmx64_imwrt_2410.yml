@@ -156,10 +156,11 @@ jobs:
         ${{ secrets.VMX64_IMWRT2410_CONFIG }}
         mv .config openwrt/.config
         cd openwrt
+        ${{ secrets.ARGON_THEME_VMX64 }}
         ${{ secrets.IMWRT2410_REPO_PATCH }}
-#        ${{ secrets.FIRMWARE_DIY_SCRIPT }}
+        ${{ secrets.FIRMWARE_DIY_SCRIPT }}
 #        ${{ secrets.VMX64_IMWRT2410_HOSTNAME }}
-#        ${{ secrets.ARGON_THEME_VMX64 }}
+
 
     - name: Download package (パッケージをダウンロード)
       id: package
