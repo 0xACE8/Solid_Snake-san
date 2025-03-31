@@ -193,7 +193,6 @@ jobs:
       run: |
         cd openwrt/bin/targets/*/*
         ls | grep -v *.gz | xargs rm -rdf
-        mv *sysupgrade.img.gz ${{ env.OUTPUT_FILENAME }}.img.gz
         sha512sums -q -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums *.gz > /dev/null 2>&1
         ${{ secrets.VMX64_IMWRT2410_PACKAGE }}
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
