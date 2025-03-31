@@ -8,7 +8,7 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 
-name: Build Virtual Machines x64 imwrt 24.10.0 actions.
+name: Build virtual machines x64 imwrt 24.10.0 actions.
 
 on:
   workflow_dispatch:
@@ -19,7 +19,8 @@ env:
   # immortalwrt 24.10.0
   IMWRT2410_REPO_URL: ${{ secrets.IMWRT2410_REPO_URL }}
   IMWRT2410_REPO_BRANCH: ${{ secrets.IMWRT2410_REPO_BRANCH }}
-  # Virtual Machines x64
+  IMWRT2410_REPO_PATCH: ${{ secrets.IMWRT2410_REPO_PATCH }}
+  # virtual machines x64
   VMX64_IMWRT2410_HOSTNAME: ${{ secrets.VMX64_IMWRT2410_HOSTNAME }}
   VMX64_IMWRT2410_PACKAGE: ${{ secrets.VMX64_IMWRT2410_PACKAGE }}
   VMX64_IMWRT2410_CONFIG: ${{ secrets.VMX64_IMWRT2410_CONFIG }}
@@ -27,8 +28,8 @@ env:
   ADD_FEED_SOURCE: ${{ secrets.ADD_FEED_SOURCE }}
   # diy script
   FIRMWARE_DIY_SCRIPT: ${{ secrets.FIRMWARE_DIY_SCRIPT }}
-  # raspberry pi color theme
-  ARGON_THEME_RPI: ${{ secrets.ARGON_THEME_RPI }}
+  # xiaomi color theme
+  ARGON_THEME_VMX64: ${{ secrets.ARGON_THEME_VMX64 }}
   # token
   ACCESS_SHA512SUM: ${{ secrets.ACCESS_SHA512SUM }}
   ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
@@ -36,11 +37,12 @@ env:
   TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
   # upload options
-  UPLOAD_FIRMWARE: false
-  UPLOAD_RELEASE: true
+  UPLOAD_FIRMWARE: true
+  UPLOAD_RELEASE: false
   CACHE_TOOLCHAIN: true
-  FIRMWARE_TAG: X64
-  DEVICE_NAME: Virtual Machines
+  FIRMWARE_TAG: vmx64
+  SOURCE_CODE: immortalwrt
+  DEVICE_NAME: x64_x86
   OUTPUT_FILENAME: immortalwrt-2410-snakesan-vmx64-sysupgrade
   TZ: "Asia/Tokyo"
 
@@ -83,12 +85,12 @@ jobs:
         echo "---------------------ハードディスク情報---------------------"
         echo "ハードディスク容量: $(ls /dev/sd* | grep -v [1-9] | wc -l)" && df -hT
 
-#    - name: Combine Disks (ディスクを結合する)
-#      uses: easimon/maximize-build-space@master
-#      with:
-#        swap-size-mb: 1024
-#        temp-reserve-mb: 100
-#        root-reserve-mb: 1024
+    - name: Combine Disks (ディスクを結合する)
+      uses: easimon/maximize-build-space@master
+      with:
+        swap-size-mb: 2048
+        temp-reserve-mb: 100
+        root-reserve-mb: 25600
 
     - name: Initialization environment (初期化環境)
       env:
@@ -105,7 +107,6 @@ jobs:
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
-        echo "START_DATE=$(date +'%Y%m%d-%H%M')" >> $GITHUB_ENV
 
     - name: Clone source code (ソースコードのクローン)
       working-directory: /workdir
@@ -115,6 +116,12 @@ jobs:
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
         cd openwrt
         ${{ secrets.ADD_FEED_SOURCE }}
+
+        # Remove All China download sources (中国からのダウンロードソースを削除する)
+        PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
+        if [ -f "$PROJECT_MIRRORS_FILE" ]; then
+          sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
+        fi
 
     - name: install turboacc software (turboacc ソフトウェアをインストールする)
       working-directory: ./openwrt
@@ -135,12 +142,6 @@ jobs:
         mixkey: ${{ env.SOURCE_REPO }}-${{ secrets.IMWRT2410_REPO_BRANCH }}-${{ env.DEVICE_NAME }}
         prefix: ${{ github.workspace }}/openwrt
 
-    - name: install turboacc and patch
-      working-directory: ./openwrt
-      run: |
-        curl -sSL https://raw.githubusercontent.com/chenmozhijin/turboacc/luci/add_turboacc.sh -o add_turboacc.sh && bash add_turboacc.sh --no-sfe
-        sed -i 's/Turbo ACC 网络加速/网络加速/g' package/turboacc/luci-app-turboacc/po/zh-cn/turboacc.po
-
     - name: Updata & install feeds (アップデートとフィードのインストール)
       working-directory: ./openwrt
       run: |
@@ -155,9 +156,10 @@ jobs:
         ${{ secrets.VMX64_IMWRT2410_CONFIG }}
         mv .config openwrt/.config
         cd openwrt
+        ${{ secrets.IMWRT2410_REPO_PATCH }}
         ${{ secrets.FIRMWARE_DIY_SCRIPT }}
         ${{ secrets.VMX64_IMWRT2410_HOSTNAME }}
-        ${{ secrets.ARGON_THEME_RPI }}
+        ${{ secrets.ARGON_THEME_VMX64 }}
 
     - name: Download package (パッケージをダウンロード)
       id: package
@@ -175,7 +177,7 @@ jobs:
         echo -e "$(nproc) thread compile"
         make -j$(nproc) || make -j1 || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
-        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
     - name: Telegram notify when compilation error (コンパイルエラーが発生したときにTelegramを使用して通知する)
       if: steps.compile.outputs.status != 'success' && !cancelled()
@@ -183,7 +185,7 @@ jobs:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       run: |
-        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&format=markdown&text=⛔%20コンパイルに失敗しました...%20⛔%0A-%20🛜デバイス:%20${{ env.DEVICE_NAME }}%0A-%20🗼ソースコード:%20$SOURCE_REPO%0A-%20🔀ブランチ:%20${{ secrets.IMWRT2410_REPO_BRANCH }}%0A"
+        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&format=markdown&text=⛔%20コンパイルに失敗しました...%20⛔%0A-%20🛜デバイス:%20${{ env.DEVICE_NAME }}%0A-%20🗼ソースコード:%20${{ env.SOURCE_REPO }}%0A-%20🔀ブランチ:%20${{ secrets.IMWRT2410_REPO_BRANCH }}%0A"
 
     - name: Organize files (ファイルを整理する)
       id: organize
@@ -191,45 +193,48 @@ jobs:
       run: |
         cd openwrt/bin/targets/*/*
         ls | grep -v *.gz | xargs rm -rdf
+        mv *sysupgrade.img.gz ${{ env.OUTPUT_FILENAME }}.img.gz
         sha512sums -q -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums *.gz > /dev/null 2>&1
         ${{ secrets.VMX64_IMWRT2410_PACKAGE }}
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
+
     - name: Upload Firmware To Artifact (Artifactにアップロードする)
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true'
       uses: actions/upload-artifact@main
       with:
-        name: $OUTPUT_FILENAME${{ env.FILE_DATE }}
+        name: ${{ env.OUTPUT_FILENAME }}_${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
 
     - name: Telegram notification (テレグラム通知)
       if: steps.compile.outputs.status == 'success' && !cancelled()
       run: |
-        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&format=markdown&text=✅%20ファームウェアが正常にコンパイルされました。%20✅%0A-%20🛜デバイス:%20${{ env.DEVICE_NAME }}%0A-%20🗼ソースコード:%20$SOURCE_REPO%0A-%20🔀ブランチ:%20${{ secrets.IMWRT2410_REPO_BRANCH }}.%0A-%20📦ファームウェア名前:%20${{ env.OUTPUT_FILENAME }}${{ env.FILE_DATE }}%0A"
+        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&format=markdown&text=✅%20ファームウェアが正常にコンパイルされました。%20✅%0A-%20🛜デバイス:%20${{ env.DEVICE_NAME }}%0A-%20🗼ソースコード:%20${{ env.SOURCE_REPO }}%0A-%20🔀ブランチ:%20${{ secrets.IMWRT2410_REPO_BRANCH }}.%0A-%20📦ファームウェア名前:%20${{ env.OUTPUT_FILENAME }}_${{ env.FILE_DATE }}%0A"
 
     - name: Generate Release Tag (タグを生成する)
       run: |
-        RELEASE_TAG="$FIRMWARE_TAG-$DEVICE_NAME"
+        RELEASE_TAG="$FIRMWARE_TAG-$DEVICE_NAME-$FILE_DATE"
         echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
 
     - name: Upload Firmware To Release (ファームウェアをアップロードする)
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true'
       uses: ncipollo/release-action@v1
       with:
-        name: ${{ env.FIRMWARE_TAG }}_${{ env.DEVICE_NAME }}${{ env.DATE }}
+        name: ${{ env.FIRMWARE_TAG }}_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}
         allowUpdates: false
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}
-        artifacts: ${{ env.FIRMWARE }}
+        artifacts: ${{ env.FIRMWARE }}/*
         body: |
-          **このImmortalWrtファームウェアはルータ${{ env.FIRMWARE_TAG }}専用です.**
-          ### 📒 ImmortalWrtの公式メインラインソースコードに基づいてコンパイルされたファームウェア.
-          - これは${{ env.FIRMWARE_TAG }}が使用するファームウェアです
+          **この${{ env.SOURCE_CODE }}ファームウェアはルータ${{ env.FIRMWARE_TAG }}専用です.**
+          ### 📒 ${{ env.SOURCE_CODE }}の公式メインラインソースコードに基づいてコンパイルされたファームウェア.
+          - これは${{ env.DEVICE_NAME }}の大きなパーティション✅x64 x86✅専用ファームウェアです.
           - 🛜 デ バ イ ス: ${{ env.DEVICE_NAME }}
-          - 🗼 ソースコード: ${{ env.SOURCE_REPO }}
-          - 🔀 ブ ラ ン チ: ${{ secrets.IMWRT2410_REPO_BRANCH }}
-          - 🌐 ア ド レ ス: 192.168.***.1 または immortalwrt.lan
+          - 👨‍💻 ソースコード: ${{ env.SOURCE_CODE }}
+          - 📦 リポジトリ : ${{ env.SOURCE_REPO }}
+          - 🔀 ブ ラ ン チ: ${{ secrets.PONLY2410_REPO_BRANCH }}
+          - 🌐 ア ド レ ス: 192.168.***.1 または vmx64.lan
           - 🔑 パスワード : なし
           ### ⚠️ 警告する ⚠️
           - ‼️現在のリポジトリによってコンパイルされたファームウェアはすべて非公開でカスタマイズされています。
