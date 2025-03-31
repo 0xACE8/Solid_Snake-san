@@ -159,7 +159,7 @@ jobs:
         ${{ secrets.ARGON_THEME_VMX64 }}
         ${{ secrets.IMWRT2410_REPO_PATCH }}
         ${{ secrets.FIRMWARE_DIY_SCRIPT }}
-#        ${{ secrets.VMX64_IMWRT2410_HOSTNAME }}
+        ${{ secrets.VMX64_IMWRT2410_HOSTNAME }}
 
 
     - name: Download package (パッケージをダウンロード)
@@ -199,7 +199,6 @@ jobs:
         ${{ secrets.VMX64_IMWRT2410_PACKAGE }}
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
-
 
     - name: Upload Firmware To Artifact (Artifactにアップロードする)
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true'
