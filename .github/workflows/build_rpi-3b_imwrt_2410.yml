@@ -193,7 +193,8 @@ jobs:
       run: |
         cd openwrt/bin/targets/*/*
         ls | grep -v *.gz | xargs rm -rdf
-        sha512sums -qq -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums *.gz
+        mv *.gz ${{ env.OUTPUT_FILENAME }}.gz
+        sha512sums -qq -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums ${{ env.OUTPUT_FILENAME }}.gz
         ${{ secrets.RP3B_IMWRT2410_PACKAGE }}
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
