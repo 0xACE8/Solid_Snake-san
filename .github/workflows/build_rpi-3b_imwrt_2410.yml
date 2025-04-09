@@ -8,7 +8,7 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 
-name: Build raspberry pi 3b imwrt 24.10.0 actions.
+name: Build virtual machines x64 imwrt 24.10.0 actions.
 
 on:
   workflow_dispatch:
@@ -16,11 +16,11 @@ on:
 #     - cron: '0 4 * * *'
 
 env:
-  # immortalwrt 24.10.0
+  # immortalwrt 2410
   IMWRT2410_REPO_URL: ${{ secrets.IMWRT2410_REPO_URL }}
   IMWRT2410_REPO_BRANCH: ${{ secrets.IMWRT2410_REPO_BRANCH }}
   IMWRT2410_REPO_PATCH: ${{ secrets.IMWRT2410_REPO_PATCH }}
-  # raspberry-pi 3b
+  # virtual machines x64
   RP3B_IMWRT2410_HOSTNAME: ${{ secrets.RP3B_IMWRT2410_HOSTNAME }}
   RP3B_IMWRT2410_PACKAGE: ${{ secrets.RP3B_IMWRT2410_PACKAGE }}
   RP3B_IMWRT2410_CONFIG: ${{ secrets.RP3B_IMWRT2410_CONFIG }}
@@ -28,7 +28,7 @@ env:
   ADD_FEED_SOURCE: ${{ secrets.ADD_FEED_SOURCE }}
   # diy script
   FIRMWARE_DIY_SCRIPT: ${{ secrets.FIRMWARE_DIY_SCRIPT }}
-  # xiaomi color theme
+  # cmcc color theme
   ARGON_THEME_RPI: ${{ secrets.ARGON_THEME_RPI }}
   # token
   ACCESS_SHA512SUM: ${{ secrets.ACCESS_SHA512SUM }}
@@ -38,11 +38,13 @@ env:
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
   # upload options
   UPLOAD_FIRMWARE: true
-  UPLOAD_RELEASE: false
+  UPLOAD_RELEASE: true
   CACHE_TOOLCHAIN: true
-  FIRMWARE_TAG: bcm2710
-  SOURCE_CODE: immortalwrt
+  # hardware & repo info
   DEVICE_NAME: Raspberry-Pi_3B
+  CPU_TAG: bcm2710
+  FLASH_TAG: TF_8Gb
+  SOURCE_CODE: immortalwrt
   OUTPUT_FILENAME: immortalwrt-2410-snakesan-bcm2710-rpi-3-sysupgrade
   TZ: "Asia/Tokyo"
 
@@ -88,7 +90,7 @@ jobs:
 #    - name: Combine Disks (ディスクを結合する)
 #      uses: easimon/maximize-build-space@master
 #      with:
-#        swap-size-mb: 1024
+#        swap-size-mb: 2048
 #        temp-reserve-mb: 100
 #        root-reserve-mb: 25600
 
@@ -122,12 +124,6 @@ jobs:
         if [ -f "$PROJECT_MIRRORS_FILE" ]; then
           sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
         fi
-
-    - name: install turboacc software (turboacc ソフトウェアをインストールする)
-      working-directory: ./openwrt
-      run: |
-        curl -sSL https://raw.githubusercontent.com/chenmozhijin/turboacc/luci/add_turboacc.sh -o add_turboacc.sh && bash add_turboacc.sh
-        sed -i 's/Turbo ACC 网络加速/网络加速/g' package/turboacc/luci-app-turboacc/po/zh-cn/turboacc.po
 
     - name: Generate Variables (変数を生成する)
       run: |
@@ -179,26 +175,28 @@ jobs:
         echo "status=success" >> $GITHUB_OUTPUT
         echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
-    - name: Telegram notify when compilation error (コンパイルエラーが発生したときにTelegramを使用して通知する)
+    - name: View Disk Usage (ディスク使用量の表示)
+      if: (!cancelled())
+      run: df -hT
+
+    - name: Telegram notify when compilation error (コンパイルエラーが発生したときにテレグラムを使用して通知する)
       if: steps.compile.outputs.status != 'success' && !cancelled()
       env:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       run: |
-        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&format=markdown&text=⛔%20コンパイルに失敗しました...%20⛔%0A-%20🛜デバイス:%20${{ env.DEVICE_NAME }}%0A-%20🗼ソースコード:%20${{ env.SOURCE_REPO }}%0A-%20🔀ブランチ:%20${{ secrets.IMWRT2410_REPO_BRANCH }}%0A"
+        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❌%20コンパイルに失敗しました！%20❌%0A%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A・🛜支援デバイス:%0A　%20　${{ env.DEVICE_NAME }}%0Aーーーーーーーーーーーーーーーーー%0A・💽フラッシュは:%0A　%20　${{ env.FLASH_TAG }}%0Aーーーーーーーーーーーーーーーーー%0A・📝ソースコード:%0A　%20　${{ env.SOURCE_CODE }}%0Aーーーーーーーーーーーーーーーーー%0A・📦リポジトリを:%0A　%20　${{ env.SOURCE_REPO }}%0Aーーーーーーーーーーーーーーーーー%0A・🗃ブランチ名前:%0A　%20　${{ secrets.IMWRT2410_REPO_BRANCH }}%0Aーーーーーーーーーーーーーーーーー%0A・❌エラーの時間:%0A　%20　$(date +'%Y年%m月%d日_%H時%M分')%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A"
 
     - name: Organize files (ファイルを整理する)
       id: organize
       if: steps.compile.outputs.status == 'success' && !cancelled()
       run: |
         cd openwrt/bin/targets/*/*
-        ls | grep -v *sysupgrade.img.gz | xargs rm -rdf
-        mv *sysupgrade.img.gz ${{ env.OUTPUT_FILENAME }}.img.gz
-        sha512sums -q -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums ${{ env.OUTPUT_FILENAME }}.img.gz > /dev/null 2>&1
+        ls | grep -v *.gz | xargs rm -rdf
+        sha512sums -qq -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums *.gz
         ${{ secrets.RP3B_IMWRT2410_PACKAGE }}
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
-
 
     - name: Upload Firmware To Artifact (Artifactにアップロードする)
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true'
@@ -207,35 +205,35 @@ jobs:
         name: ${{ env.OUTPUT_FILENAME }}_${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
 
-    - name: Telegram notification (テレグラム通知)
+    - name: Telegram notify when compilation complete (コンパイルが成功したらテレグラムを使用して通知する)
       if: steps.compile.outputs.status == 'success' && !cancelled()
       run: |
-        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&format=markdown&text=✅%20ファームウェアが正常にコンパイルされました。%20✅%0A-%20🛜デバイス:%20${{ env.DEVICE_NAME }}%0A-%20🗼ソースコード:%20${{ env.SOURCE_REPO }}%0A-%20🔀ブランチ:%20${{ secrets.IMWRT2410_REPO_BRANCH }}.%0A-%20📦ファームウェア名前:%20${{ env.OUTPUT_FILENAME }}_${{ env.FILE_DATE }}%0A"
+        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=✅%20コンパイルが成功しました！%20✅%0A%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A・🛜支援デバイス:%0A　%20　${{ env.DEVICE_NAME }}%0Aーーーーーーーーーーーーーーーーー%0A・💽フラッシュは:%0A　%20　${{ env.FLASH_TAG }}%0Aーーーーーーーーーーーーーーーーー%0A・📝ソースコード:%0A　%20　${{ env.SOURCE_CODE }}%0Aーーーーーーーーーーーーーーーーー%0A・📦リポジトリを:%0A　%20　${{ env.SOURCE_REPO }}%0Aーーーーーーーーーーーーーーーーー%0A・🗃ブランチ名前:%0A　%20　${{ secrets.IMWRT2410_REPO_BRANCH }}%0Aーーーーーーーーーーーーーーーーー%0A・📁ファイル名前:%0A　%20　${{ env.OUTPUT_FILENAME}}_${{ env.FILE_DATE }}%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A"
 
     - name: Generate Release Tag (タグを生成する)
       run: |
-        RELEASE_TAG="$FIRMWARE_TAG-$DEVICE_NAME-$FILE_DATE"
+        RELEASE_TAG="$CPU_TAG-$DEVICE_NAME-$FLASH_TAG-$FILE_DATE"
         echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
 
     - name: Upload Firmware To Release (ファームウェアをアップロードする)
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true'
       uses: ncipollo/release-action@v1
       with:
-        name: ${{ env.FIRMWARE_TAG }}_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}
+        name: ${{ env.CPU_TAG }}_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}
         allowUpdates: false
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}
         artifacts: ${{ env.FIRMWARE }}/*
         body: |
-          **この${{ env.SOURCE_CODE }}ファームウェアはルータ${{ env.FIRMWARE_TAG }}専用です.**
-          ### 📒 ${{ env.SOURCE_CODE }}の公式メインラインソースコードに基づいてコンパイルされたファームウェア.
-          - これは${{ env.DEVICE_NAME }}の大きなパーティション✅8Gb TF-Card✅専用ファームウェアです.
-          - 🛜 デ バ イ ス: ${{ env.DEVICE_NAME }}
-          - 👨‍💻 ソースコード: ${{ env.SOURCE_CODE }}
-          - 📦 リポジトリ : ${{ env.SOURCE_REPO }}
-          - 🔀 ブ ラ ン チ: ${{ secrets.PONLY2410_REPO_BRANCH }}
-          - 🌐 ア ド レ ス: 192.168.***.1 または rpi3b.lan
-          - 🔑 パスワード : なし
+          **このファームウェアは、CPU「${{ env.CPU_TAG }}」モデル「${{ env.DEVICE_NAME }}」を搭載したルーター✅ ${{ env.FLASH_TAG }} ✅にのみ適しています。**
+          ### 📒「${{ env.SOURCE_CODE }}」リポジトリのソースコードからコンパイルされたファームウェア。
+          - 🛜 支援デバイス: ${{ env.DEVICE_NAME }}
+          - 💽 フラッシュは: ${{ env.FLASH_TAG }}
+          - 📝 ソースコード: ${{ env.SOURCE_CODE }}
+          - 📦 リポジトリを: ${{ env.SOURCE_REPO }}
+          - 🗃 ブランチ名前: ${{ secrets.IMWRT2410_REPO_BRANCH }}
+          - 🌐 接続アドレス: 192.168.***.1 または anna.lan
+          - 🔑 パスワードは: なし
           ### ⚠️ 警告する ⚠️
           - ‼️現在のリポジトリによってコンパイルされたファームウェアはすべて非公開でカスタマイズされています。
           - ⛔️強制フラッシュ⛔️によってデバイスが損傷した場合、このリポジトリはデバイスの損傷について一切責任を負いません。
