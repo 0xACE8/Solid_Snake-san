@@ -8,7 +8,7 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 
-name: Build virtual machines x64 imwrt 24.10.0 actions.
+name: Build raspberry pi 3b imwrt 24.10.0 actions.
 
 on:
   workflow_dispatch:
@@ -228,7 +228,6 @@ jobs:
           **このファームウェアは、CPU「${{ env.CPU_TAG }}」モデル「${{ env.DEVICE_NAME }}」を搭載したルーター✅ ${{ env.FLASH_TAG }} ✅にのみ適しています。**
           ### 📒「${{ env.SOURCE_CODE }}」リポジトリのソースコードからコンパイルされたファームウェア。
           - 🛜 支援デバイス: ${{ env.DEVICE_NAME }}
-          - 💽 フラッシュは: ${{ env.FLASH_TAG }}
           - 📝 ソースコード: ${{ env.SOURCE_CODE }}
           - 📦 リポジトリを: ${{ env.SOURCE_REPO }}
           - 🗃 ブランチ名前: ${{ secrets.IMWRT2410_REPO_BRANCH }}
