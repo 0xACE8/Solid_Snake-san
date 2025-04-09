@@ -192,9 +192,9 @@ jobs:
       if: steps.compile.outputs.status == 'success' && !cancelled()
       run: |
         cd openwrt/bin/targets/*/*
-        ls | grep -v *.gz | xargs rm -rdf
-        mv *.gz ${{ env.OUTPUT_FILENAME }}.gz
-        sha512sums -qq -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums ${{ env.OUTPUT_FILENAME }}.gz
+        ls | grep -v *sysupgrade.img.gz | xargs rm -rdf
+        mv *.img.gz ${{ env.OUTPUT_FILENAME }}.img.gz
+        sha512sums -qq -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums ${{ env.OUTPUT_FILENAME }}.img.gz
         ${{ secrets.RP3B_IMWRT2410_PACKAGE }}
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
