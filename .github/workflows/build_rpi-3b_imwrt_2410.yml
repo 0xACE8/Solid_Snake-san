@@ -229,10 +229,11 @@ jobs:
           **このファームウェアは、CPU「${{ env.CPU_TAG }}」モデル「${{ env.DEVICE_NAME }}」を搭載したルーター✅ ${{ env.FLASH_TAG }} ✅にのみ適しています。**
           ### 📒「${{ env.SOURCE_CODE }}」リポジトリのソースコードからコンパイルされたファームウェア。
           - 🛜 支援デバイス: ${{ env.DEVICE_NAME }}
+          - 💽 フラッシュは: ${{ env.FLASH_TAG }}
           - 📝 ソースコード: ${{ env.SOURCE_CODE }}
           - 📦 リポジトリを: ${{ env.SOURCE_REPO }}
           - 🗃 ブランチ名前: ${{ secrets.IMWRT2410_REPO_BRANCH }}
-          - 🌐 接続アドレス: 192.168.***.1 または anna.lan
+          - 🌐 接続アドレス: 192.168.***.1 または immortalwrt.lan
           - 🔑 パスワードは: なし
           ### ⚠️ 警告する ⚠️
           - ‼️現在のリポジトリによってコンパイルされたファームウェアはすべて非公開でカスタマイズされています。
