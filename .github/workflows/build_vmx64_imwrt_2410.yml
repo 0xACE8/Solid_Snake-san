@@ -8,12 +8,33 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 
-name: Build virtual machines x64 imwrt 24.10.0 actions.
+name: Build virtual machines x64 imwrt 24.10.1 actions.
 
 on:
   workflow_dispatch:
-#   schedule:
-#     - cron: '0 4 * * *'
+    inputs:
+      restore_configuration:
+        description: 'Restore configuration archive (バックアップした構成アーカイブを復元する)'
+        type: boolean
+        default: false
+      telegram_notify:
+        description: 'Enable Telegram Notify (テレグラム通知を有効にする)'
+        type: boolean
+        default: false
+      upload_firmware:
+        description: 'Upload Firmware To Artifact (Artifactにアップロードする)'
+        type: boolean
+        default: false
+      upload_release:
+        description: 'Upload Firmware To Release (ファームウェアをアップロードする)'
+        type: boolean
+        default: false
+      cache_toolchain:
+        description: 'Cache Toolchain (キャッシュツールチェーン)'
+        type: boolean
+        default: true
+  schedule:
+    - cron: '0 0 * * 1'
 
 env:
   # immortalwrt 2410
@@ -24,11 +45,12 @@ env:
   VMX64_IMWRT2410_HOSTNAME: ${{ secrets.VMX64_IMWRT2410_HOSTNAME }}
   VMX64_IMWRT2410_PACKAGE: ${{ secrets.VMX64_IMWRT2410_PACKAGE }}
   VMX64_IMWRT2410_CONFIG: ${{ secrets.VMX64_IMWRT2410_CONFIG }}
+  VMX64_IMWRT2410_BACKUP: ${{ secrets.VMX64_IMWRT2410_BACKUP }}
   # feeds source
   ADD_FEED_SOURCE: ${{ secrets.ADD_FEED_SOURCE }}
   # diy script
   FIRMWARE_DIY_SCRIPT: ${{ secrets.FIRMWARE_DIY_SCRIPT }}
-  # cmcc color theme
+  # xiaomi color theme
   ARGON_THEME_VMX64: ${{ secrets.ARGON_THEME_VMX64 }}
   # token
   ACCESS_SHA512SUM: ${{ secrets.ACCESS_SHA512SUM }}
@@ -36,10 +58,6 @@ env:
   # telegram bot
   TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-  # upload options
-  UPLOAD_FIRMWARE: true
-  UPLOAD_RELEASE: true
-  CACHE_TOOLCHAIN: true
   # hardware & repo info
   DEVICE_NAME: VMX64
   CPU_TAG: x64
@@ -87,13 +105,6 @@ jobs:
         echo "---------------------ハードディスク情報---------------------"
         echo "ハードディスク容量: $(ls /dev/sd* | grep -v [1-9] | wc -l)" && df -hT
 
-#    - name: Combine Disks (ディスクを結合する)
-#      uses: easimon/maximize-build-space@master
-#      with:
-#        swap-size-mb: 2048
-#        temp-reserve-mb: 100
-#        root-reserve-mb: 25600
-
     - name: Initialization environment (初期化環境)
       env:
         DEBIAN_FRONTEND: noninteractive
@@ -125,17 +136,23 @@ jobs:
           sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
         fi
 
+    - name: install turboacc and patch (turboaccとパッチをインストールする)
+      working-directory: ./openwrt
+      run: |
+        curl -sSL https://raw.githubusercontent.com/chenmozhijin/turboacc/luci/add_turboacc.sh -o add_turboacc.sh && bash add_turboacc.sh
+        sed -i 's/Turbo ACC 网络加速/网络加速/g' package/turboacc/luci-app-turboacc/po/zh-cn/turboacc.po
+
     - name: Generate Variables (変数を生成する)
       run: |
         SOURCE_REPO="$(echo $IMWRT2410_REPO_URL | awk -F '/' '{print $(NF)}')"
         echo "SOURCE_REPO=$SOURCE_REPO" >> $GITHUB_ENV
 
     - name: Cache Toolchain (キャッシュツールチェーン)
-      if: env.CACHE_TOOLCHAIN == 'true'
+      if: (github.event.inputs.cache_toolchain == 'true' && github.event.inputs.cache_toolchain  != 'false') || contains(github.event.action, 'cache_toolchain') && !cancelled()
       uses: HiGarfield/cachewrtbuild@main
       with:
         ccache: false
-        mixkey: ${{ env.SOURCE_REPO }}-${{ secrets.IMWRT2410_REPO_BRANCH }}-${{ env.DEVICE_NAME }}
+        mixkey: ${{ env.SOURCE_CODE }}-${{ secrets.IMWRT2410_REPO_BRANCH }}-${{ env.DEVICE_NAME }}
         prefix: ${{ github.workspace }}/openwrt
 
     - name: Updata & install feeds (アップデートとフィードのインストール)
@@ -156,6 +173,13 @@ jobs:
         ${{ secrets.FIRMWARE_DIY_SCRIPT }}
         ${{ secrets.VMX64_IMWRT2410_HOSTNAME }}
         ${{ secrets.ARGON_THEME_VMX64 }}
+
+    - name: Restore configuration archive (バックアップした構成アーカイブを復元する)
+      if: (github.event.inputs.restore_configuration == 'true' && github.event.inputs.restore_configuration != 'false') || contains(github.event.action, 'restore_configuration') && !cancelled()
+      working-directory: ./openwrt
+      run: |
+        cd openwrt
+        ${{ secrets.VMX64_IMWRT2410_BACKUP }}
 
     - name: Download package (パッケージをダウンロード)
       id: package
@@ -180,35 +204,36 @@ jobs:
       run: df -hT
 
     - name: Telegram notify when compilation error (コンパイルエラーが発生したときにテレグラムを使用して通知する)
-      if: steps.compile.outputs.status != 'success' && !cancelled()
+      if: steps.compile.outputs.status != 'success' && (github.event.inputs.telegram_notify == 'true' && github.event.inputs.telegram_notify != 'false') || contains(github.event.action, 'telegram_notify') && !cancelled()
       env:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       run: |
-        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❌%20コンパイルに失敗しました！%20❌%0A%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A・🛜支援デバイス:%0A　%20　${{ env.DEVICE_NAME }}%0Aーーーーーーーーーーーーーーーーー%0A・💽フラッシュは:%0A　%20　${{ env.FLASH_TAG }}%0Aーーーーーーーーーーーーーーーーー%0A・📝ソースコード:%0A　%20　${{ env.SOURCE_CODE }}%0Aーーーーーーーーーーーーーーーーー%0A・📦リポジトリを:%0A　%20　${{ env.SOURCE_REPO }}%0Aーーーーーーーーーーーーーーーーー%0A・🗃ブランチ名前:%0A　%20　${{ secrets.IMWRT2410_REPO_BRANCH }}%0Aーーーーーーーーーーーーーーーーー%0A・❌エラーの時間:%0A　%20　$(date +'%Y年%m月%d日_%H時%M分')%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A"
+        curl -s -o /dev/null -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=❌%20コンパイルに失敗しました！%20❌%0A%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A・🛜支援デバイス:%0A　%20　${{ env.DEVICE_NAME }}%0Aーーーーーーーーーーーーーーーーー%0A・💽フラッシュは:%0A　%20　${{ env.FLASH_TAG }}%0Aーーーーーーーーーーーーーーーーー%0A・📝ソースコード:%0A　%20　${{ env.SOURCE_CODE }}%0Aーーーーーーーーーーーーーーーーー%0A・📦リポジトリを:%0A　%20　${{ env.SOURCE_REPO }}%0Aーーーーーーーーーーーーーーーーー%0A・🔀ブランチ名前:%0A　%20　${{ secrets.PONLY2410_REPO_BRANCH }}%0Aーーーーーーーーーーーーーーーーー%0A・❌エラーの時間:%0A　%20　$(date +'%Y年%m月%d日_%H時%M分')%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A"
 
     - name: Organize files (ファイルを整理する)
       id: organize
       if: steps.compile.outputs.status == 'success' && !cancelled()
       run: |
         cd openwrt/bin/targets/*/*
-        ls | grep -v *.gz | xargs rm -rdf
-        sha512sums -qq -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums *.gz
+        ls | grep -v *sysupgrade.bin | xargs rm -rdf
+        mv *.bin ${{ env.OUTPUT_FILENAME }}.bin
+        sha512sums -qq -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums ${{ env.OUTPUT_FILENAME }}.bin
         ${{ secrets.VMX64_IMWRT2410_PACKAGE }}
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload Firmware To Artifact (Artifactにアップロードする)
-      if: steps.compile.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true'
+      if: steps.compile.outputs.status == 'success' && (github.event.inputs.upload_firmware == 'true' && github.event.inputs.upload_firmware  != 'false') || contains(github.event.action, 'upload_firmware') && !cancelled()
       uses: actions/upload-artifact@main
       with:
         name: ${{ env.OUTPUT_FILENAME }}_${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
 
     - name: Telegram notify when compilation complete (コンパイルが成功したらテレグラムを使用して通知する)
-      if: steps.compile.outputs.status == 'success' && !cancelled()
+      if: steps.compile.outputs.status == 'success' && (github.event.inputs.telegram_notify == 'true' && github.event.inputs.telegram_notify != 'false') || contains(github.event.action, 'telegram_notify') && !cancelled()
       run: |
-        curl -i -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=✅%20コンパイルが成功しました！%20✅%0A%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A・🛜支援デバイス:%0A　%20　${{ env.DEVICE_NAME }}%0Aーーーーーーーーーーーーーーーーー%0A・💽フラッシュは:%0A　%20　${{ env.FLASH_TAG }}%0Aーーーーーーーーーーーーーーーーー%0A・📝ソースコード:%0A　%20　${{ env.SOURCE_CODE }}%0Aーーーーーーーーーーーーーーーーー%0A・📦リポジトリを:%0A　%20　${{ env.SOURCE_REPO }}%0Aーーーーーーーーーーーーーーーーー%0A・🗃ブランチ名前:%0A　%20　${{ secrets.IMWRT2410_REPO_BRANCH }}%0Aーーーーーーーーーーーーーーーーー%0A・📁ファイル名前:%0A　%20　${{ env.OUTPUT_FILENAME}}_${{ env.FILE_DATE }}%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A"
+        curl -s -o /dev/null -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=✅%20コンパイルが成功しました！%20✅%0A%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A・🛜支援デバイス:%0A　%20　${{ env.DEVICE_NAME }}%0Aーーーーーーーーーーーーーーーーー%0A・💽フラッシュは:%0A　%20　${{ env.FLASH_TAG }}%0Aーーーーーーーーーーーーーーーーー%0A・📝ソースコード:%0A　%20　${{ env.SOURCE_CODE }}%0Aーーーーーーーーーーーーーーーーー%0A・📦リポジトリを:%0A　%20　${{ env.SOURCE_REPO }}%0Aーーーーーーーーーーーーーーーーー%0A・🔀ブランチ名前:%0A　%20　${{ secrets.PONLY2410_REPO_BRANCH }}%0Aーーーーーーーーーーーーーーーーー%0A・📁ファイル名前:%0A　%20　${{ env.OUTPUT_FILENAME}}_${{ env.FILE_DATE }}%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A"
 
     - name: Generate Release Tag (タグを生成する)
       run: |
@@ -216,10 +241,10 @@ jobs:
         echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
 
     - name: Upload Firmware To Release (ファームウェアをアップロードする)
-      if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true'
+      if: steps.compile.outputs.status == 'success' && (github.event.inputs.upload_release == 'true' && github.event.inputs.upload_release  != 'false') || contains(github.event.action, 'upload_release') && !cancelled()
       uses: ncipollo/release-action@v1
       with:
-        name: ${{ env.CPU_TAG }}_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}
+        name: ${{ env.CPU_TAG }}_${{ env.DEVICE_NAME }}_${{ env.FLASH_TAG }}_${{ env.FILE_DATE }}
         allowUpdates: false
         tag: ${{ env.RELEASE_TAG }}
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -231,8 +256,8 @@ jobs:
           - 💽 フラッシュは: ${{ env.FLASH_TAG }}
           - 📝 ソースコード: ${{ env.SOURCE_CODE }}
           - 📦 リポジトリを: ${{ env.SOURCE_REPO }}
-          - 🗃 ブランチ名前: ${{ secrets.IMWRT2410_REPO_BRANCH }}
-          - 🌐 接続アドレス: 192.168.***.1 または immortalwrt.lan
+          - 🔀 ブランチ名前: ${{ secrets.IMWRT2410_REPO_BRANCH }}
+          - 🌐 接続アドレス: 192.168.***.1
           - 🔑 パスワードは: なし
           ### ⚠️ 警告する ⚠️
           - ‼️現在のリポジトリによってコンパイルされたファームウェアはすべて非公開でカスタマイズされています。
@@ -253,3 +278,5 @@ jobs:
         delete_tags: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+  
