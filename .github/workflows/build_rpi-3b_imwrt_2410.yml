@@ -30,7 +30,7 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: '0 4 * * 0'
+    - cron: '0 19 * * 0'
 
 env:
   # immortalwrt 2410
@@ -192,7 +192,10 @@ jobs:
         make -j$(nproc) || make -j1 || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
         echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
-        echo OUTPUT_FILENAME="${OUTPUT_FILENAME}_${FILE_DATE}" >> $GITHUB_ENV
+
+    - name: Upgrading variables (変数のアップグレード)
+      run: |
+        echo "OUTPUT_FILENAME=${OUTPUT_FILENAME}_${FILE_DATE}" >> $GITHUB_ENV
 
     - name: View Disk Usage (ディスク使用量の表示)
       if: (!cancelled())
@@ -214,7 +217,7 @@ jobs:
         ls | grep -v *sysupgrade.img.gz | xargs rm -rdf
         mv *.img.gz ${{ env.OUTPUT_FILENAME }}.img.gz
         sha512sums -qq -r -P ${{ secrets.ACCESS_SHA512SUM }} sha512sums ${{ env.OUTPUT_FILENAME }}.img.gz
-        ${{ secrets.RP3B_IMWRT2410_PACKAGE }}
+        ${{ secrets.RP3B_IMWRT2410_PACKAGE }}_${{ env.FILE_DATE }}.img.gz
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
@@ -222,13 +225,13 @@ jobs:
       if: steps.compile.outputs.status == 'success' && (github.event.inputs.upload_firmware == 'true' && github.event.inputs.upload_firmware  != 'false') || contains(github.event.action, 'upload_firmware')
       uses: actions/upload-artifact@main
       with:
-        name: ${{ env.OUTPUT_FILENAME }}_${{ env.FILE_DATE }}
+        name: ${{ env.OUTPUT_FILENAME }}
         path: ${{ env.FIRMWARE }}
 
     - name: Telegram notify when compilation complete (コンパイルが成功したらテレグラムを使用して通知する)
       if: steps.compile.outputs.status == 'success' && (github.event.inputs.telegram_notify == 'true' && github.event.inputs.telegram_notify != 'false') || contains(github.event.action, 'telegram_notify') && !cancelled()
       run: |
-        curl -s -o /dev/null -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=✅%20コンパイルが成功しました！%20✅%0A%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A・🛜支援デバイス:%0A　%20　${{ env.DEVICE_NAME }}%0Aーーーーーーーーーーーーーーーーー%0A・💽フラッシュは:%0A　%20　${{ env.FLASH_TAG }}%0Aーーーーーーーーーーーーーーーーー%0A・📝ソースコード:%0A　%20　${{ env.SOURCE_CODE }}%0Aーーーーーーーーーーーーーーーーー%0A・📦リポジトリを:%0A　%20　${{ env.SOURCE_REPO }}%0Aーーーーーーーーーーーーーーーーー%0A・🔀ブランチ名前:%0A　%20　${{ secrets.IMWRT2410_REPO_BRANCH }}%0Aーーーーーーーーーーーーーーーーー%0A・📁ファイル名前:%0A　%20　${{ env.OUTPUT_FILENAME}}_${{ env.FILE_DATE }}%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A"
+        curl -s -o /dev/null -X GET "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage?chat_id=${{ secrets.TELEGRAM_CHAT_ID }}&text=✅%20コンパイルが成功しました！%20✅%0A%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A・🛜支援デバイス:%0A　%20　${{ env.DEVICE_NAME }}%0Aーーーーーーーーーーーーーーーーー%0A・💽フラッシュは:%0A　%20　${{ env.FLASH_TAG }}%0Aーーーーーーーーーーーーーーーーー%0A・📝ソースコード:%0A　%20　${{ env.SOURCE_CODE }}%0Aーーーーーーーーーーーーーーーーー%0A・📦リポジトリを:%0A　%20　${{ env.SOURCE_REPO }}%0Aーーーーーーーーーーーーーーーーー%0A・🔀ブランチ名前:%0A　%20　${{ secrets.IMWRT2410_REPO_BRANCH }}%0Aーーーーーーーーーーーーーーーーー%0A・📁ファイル名前:%0A　%20　${{ env.OUTPUT_FILENAME}}%0A＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝%0A"
 
     - name: Generate Release Tag (タグを生成する)
       run: |
@@ -263,13 +266,13 @@ jobs:
       with:
         token: ${{ secrets.ACCESS_TOKEN }}
         repository: ${{ github.repository }}
-        retain_days: 7
-        keep_minimum_runs: 3
+        retain_days: 1
+        keep_minimum_runs: 2
 
     - name: Delete Old Releases (古いリリースを削除する)
       uses: dev-drprasad/delete-older-releases@master
       with:
-        keep_latest: 3
+        keep_latest: 4
         delete_tags: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
