@@ -186,9 +186,9 @@ jobs:
     - name: Cache Toolchain (キャッシュツールチェーン)
       uses: HiGarfield/cachewrtbuild@main
       with:
-        ccache: false
+        ccache: true
         mixkey: ${{ env.DEVICE_NAME }}-${{ env.SOURCE_REPO }}-${{ secrets.IMWRT2410_REPO_BRANCH }}
-        prefix: ${{ github.workspace }}/openwrt
+        prefix: ${{ env.OPENWRT_PATH }}
 
     - name: Updata & install feeds (アップデートとフィードのインストール)
       working-directory: ./openwrt
