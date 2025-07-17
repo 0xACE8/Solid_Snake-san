@@ -203,10 +203,15 @@ jobs:
       working-directory: ./openwrt
       run: |
         ${{ secrets.RP3B_IMWRT2410_CONFIG }}
+        echo "config load done."
         ${{ secrets.IMWRT2410_REPO_PATCH }}
+        echo "patch load done."
         ${{ secrets.FIRMWARE_DIY_SCRIPT }}
+        echo "diy load done."
         ${{ secrets.RP3B_IMWRT2410_HOSTNAME }}
+        echo "hostname load done."
         ${{ secrets.ARGON_THEME_RPI }}
+        echo "theme load done."
 
     - name: Restore configuration archive (バックアップした構成アーカイブを復元する)
       if: (github.event.inputs.restore_configuration == 'true' && github.event.inputs.restore_configuration != 'false') || contains(github.event.action, 'restore_configuration') && !cancelled()
