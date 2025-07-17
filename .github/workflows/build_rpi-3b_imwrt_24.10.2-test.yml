@@ -153,15 +153,15 @@ jobs:
         sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
         sudo -E systemctl daemon-reload
         sudo timedatectl set-timezone "$TZ"
-        sudo mkdir -p /workdir
-        sudo chown $USER:$GROUPS /workdir
+        sudo chown $USER:$GROUPS $GITHUB_WORKSPACE
+#        sudo mkdir -p /workdir
+#        sudo chown $USER:$GROUPS /workdir
 
     - name: Clone source code (ソースコードのクローン)
-      working-directory: /workdir
+      working-directory: ./
       run: |
         df -hT $PWD
         git clone $IMWRT2410_REPO_URL -b $IMWRT2410_REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
         cd openwrt
         ${{ secrets.ADD_FEED_SOURCE }}
 
