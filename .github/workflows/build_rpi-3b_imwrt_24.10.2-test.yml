@@ -164,6 +164,7 @@ jobs:
         git clone $IMWRT2410_REPO_URL -b $IMWRT2410_REPO_BRANCH openwrt
         cd openwrt
         ${{ secrets.ADD_FEED_SOURCE }}
+        echo "OPENWRT_PATH=$PWD" >> $GITHUB_ENV
 
         # Remove All China download sources (中国からのダウンロードソースを削除する)
         PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
@@ -199,10 +200,9 @@ jobs:
         ./scripts/feeds install -a
 
     - name: Load custom configuration (カスタム構成を読み込む)
+      working-directory: ./openwrt
       run: |
         ${{ secrets.RP3B_IMWRT2410_CONFIG }}
-        mv .config openwrt/.config
-        cd openwrt
         ${{ secrets.IMWRT2410_REPO_PATCH }}
         ${{ secrets.FIRMWARE_DIY_SCRIPT }}
         ${{ secrets.RP3B_IMWRT2410_HOSTNAME }}
