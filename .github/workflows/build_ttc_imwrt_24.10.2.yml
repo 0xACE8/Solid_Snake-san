@@ -165,9 +165,13 @@ jobs:
         mv .config openwrt/.config
         cd openwrt
         ${{ secrets.IMWRT2410_REPO_PATCH }}
+        echo "repo patch done."
         ${{ secrets.FIRMWARE_DIY_SCRIPT }}
+        echo "diy script done."
         ${{ secrets.TTC_IMWRT2410_HOSTNAME }}
+        echo "hostname done."
         ${{ secrets.ARGON_THEME_VMX64 }}
+        echo "theme done."
 
     - name: Restore configuration archive (バックアップした構成アーカイブを復元する)
       if: (github.event.inputs.restore_configuration == 'true' && github.event.inputs.restore_configuration != 'false') || contains(github.event.action, 'restore_configuration') && !cancelled()
