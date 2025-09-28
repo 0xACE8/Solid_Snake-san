@@ -8,7 +8,7 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 
-name: Build raspberry pi 3b imwrt 24.10.2 actions.
+name: Build raspberry pi 3b imwrt 24.10.3 actions.
 
 on:
   workflow_dispatch:
@@ -59,7 +59,7 @@ env:
   CPU_TAG: bcm2710
   FLASH_TAG: TF_8Gb
   SOURCE_CODE: immortalwrt
-  OUTPUT_FILENAME: immortalwrt-24.10.2-snake-bcm2710-rpi-3-tf_8g-sysupgrade
+  OUTPUT_FILENAME: immortalwrt-24.10.3-snake-bcm2710-rpi-3-tf_8g-sysupgrade
   TZ: "Asia/Tokyo"
 
 jobs:
